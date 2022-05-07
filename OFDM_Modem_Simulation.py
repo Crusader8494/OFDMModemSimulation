@@ -432,48 +432,93 @@ def Scramble(data, LFSRStateIs):
 #Channel Coder
 #Input: 0x0000
 #Output: 0x00000000
-def ChannelCoder(scrambledDataIn, stateOfCE):
-    ConvolutionalEncodedQWordArray = []
+def ChannelCoder(data, stateOfCE, encodeDecode):
+    newData = []
     
-    for i in range(0, len(scrambledDataIn)):
-        QWordToBuild = 0x00000000
-        tempDWord = scrambledDataIn[i]
-        #print("The Current DWord is: " + str(bin(tempDWord)))
+    if encodeDecode == True:
+        for i in range(0, len(data)):
+            QWordToBuild = 0x00000000
+            tempDWord = data[i]
+            #print("The Current DWord is: " + str(bin(tempDWord)))
 
-        for j in range(0, 16):
-            currentBit = tempDWord & 0b1000000000000000
-            currentBit = currentBit >> 15
-            currentBit = currentBit & 0b0000000000000001
-            
-            #print("The Current Bit is: " + str(bin(currentBit)))
-            
-            #print("The State of CE Before Shift is: " + str(bin(stateOfCE)))
-            stateOfCE = (stateOfCE << 1)  #Clock Pulse
-            stateOfCE = stateOfCE + currentBit #Clock Pulse
-            stateOfCE = stateOfCE & 0b111 #Clock Pulse
-            #print("The State of CE After Shift is: " + str(bin(stateOfCE)))
+            for j in range(0, 16):
+                currentBit = tempDWord & 0b1000000000000000
+                currentBit = currentBit >> 15
+                currentBit = currentBit & 0b0000000000000001
+                
+                #print("The Current Bit is: " + str(bin(currentBit)))
+                
+                #print("The State of CE Before Shift is: " + str(bin(stateOfCE)))
+                stateOfCE = (stateOfCE << 1)  #Clock Pulse
+                stateOfCE = stateOfCE + currentBit #Clock Pulse
+                stateOfCE = stateOfCE & 0b111 #Clock Pulse
+                #print("The State of CE After Shift is: " + str(bin(stateOfCE)))
 
-            #determine A and B
-            a = ((stateOfCE & 0b001) + (stateOfCE & 0b010) + (stateOfCE & 0b100)) & 0b1
-            #print("The Result of a is: " + str(bin(a)))
-            b = ((stateOfCE & 0b001) + (stateOfCE & 0b010)) & 0b1
-            #print("The Result of b is: " + str(bin(b)))
-            ###### FAKE NEWS GARBAGE ##### tempDoubleBit = a + b
+                #determine A and B
+                a = ((stateOfCE & 0b001) + (stateOfCE & 0b010) + (stateOfCE & 0b100)) & 0b001
+                #print("The Result of a is: " + str(bin(a)))
+                b = ((stateOfCE & 0b001) + (stateOfCE & 0b010)) & 0b001
+                #print("The Result of b is: " + str(bin(b)))
+                ###### FAKE NEWS GARBAGE ##### tempDoubleBit = a + b
 
-            QWordToBuild = QWordToBuild + a
-            QWordToBuild = QWordToBuild << 1
-            QWordToBuild = QWordToBuild + b
-            QWordToBuild = QWordToBuild << 1
-            QWordToBuild = QWordToBuild & 0xFFFFFFFF
+                QWordToBuild = QWordToBuild + a
+                QWordToBuild = QWordToBuild << 1
+                QWordToBuild = QWordToBuild + b
+                QWordToBuild = QWordToBuild << 1
+                QWordToBuild = QWordToBuild & 0xFFFFFFFF
 
-            #print("The Current QWord is: " + str(bin(QWordToBuild)))
-            tempDWord = tempDWord << 1
-            tempDWord = tempDWord  & 0xFFFF
-            #print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-        ConvolutionalEncodedQWordArray.append(QWordToBuild)
-    if logEnable == 1:
-        print("\nConvolutional Encoded Samples: " + str(ConvolutionalEncodedQWordArray) + "\n")
-    return ConvolutionalEncodedQWordArray
+                #print("The Current QWord is: " + str(bin(QWordToBuild)))
+                tempDWord = tempDWord << 1
+                tempDWord = tempDWord  & 0xFFFF
+                #print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            newData.append(QWordToBuild)
+        if logEnable == 1:
+            print("\nConvolutional Encoded Samples: " + str(newData) + "\n")
+    else:# decode (viterbi)
+        #model:
+        #0 -> 0 or 1
+        #1 -> 2 or 3
+        #2 -> 0 or 1
+        #3 -> 2 or 3
+        #trellis should be represented as a list (multiple iterations of the trellis) of...
+        #lists (each row of the trellis) of lists (multiple paths to those rows if they exist) of...
+        #lists (previous node and hamming distance)
+        trellis = []
+        #trellis = [[[tuple(previousNode, hammingDistance)]]]
+        trellisColumn = []
+        #trellisColumn = [[tuple(previousNode, hammingDistance)]]
+        trellisColumnNode = []
+        #trellisColumnNode = [tuple(previousNode, hammingDistance)]
+        trellisColumnNodeInformation = tuple(-1,0)
+        #trellisColumnNodeInformation = tuple(previousNode, hammingDistance)
+        previousNode = 0 #0,1,2 or 3
+        hammingDistance = 0
+        for i in range(0, len(data)):
+            dataList = []
+            tempData = 0
+            for j in range(0, 16):
+                tempData = (tempData & 0xC0000000) >> 30
+                dataList.append(tempData)
+                tempData = data[i] << (j*2)
+            for j in range(0, 16):
+                for k in range(0, 4):
+                    #create nodes and branch
+                    if len(trellis) == 0:
+                        hammingDistance = (dataList[j] ^ 0b00) & 0x00000003
+                        trellisColumnNodeInformation = tuple(-1,hammingDistance) #-1 denotes root node
+                        trellisColumnNodeInformation.append(trellisColumnNodeInformation)
+                        break #exit due to initial state
+                    elif len(trellis) == 1:
+                        
+                    else:
+
+                trellisColumnNode.append(trellisColumnNodeInformation)
+                trellisColumn.append(trellisColumnNode)
+                trellis.append(trellisColumn)
+                        #destroy nodes / find lowest hamming distance at each node and elimate all other paths at each node
+                
+
+    return newData
 
 
 #Interleaver
@@ -804,6 +849,8 @@ def convertToMagnitude(data):
 
     return finalData
 
+
+
 def createSpectrogram(data, fs, nPts, overlap):
 
     dt = 1/fs
@@ -828,12 +875,44 @@ def createSpectrogram(data, fs, nPts, overlap):
     plt.show()
     return
 
+def runBIT():
+    global stateOfLFSR, stateOfCE
+    success = False
+
+    testOrigData = CreateData(350, 8E3)
+
+    #Scramble Test
+    testStateOfLFSR = stateOfLFSR
+    scrambleTestSuccess = False
+    testScrambledData = Scramble(testOrigData, testStateOfLFSR)
+    testStateOfLFSR = 0b1000101010111111
+    testDescrambledData = Scramble(testScrambledData, testStateOfLFSR)
+    print("PreScrambled: " + str(testOrigData))
+    print("PostDeScrambled: " + str(testDescrambledData))
+    if testOrigData == testDescrambledData:
+        scrambleTestSuccess = True
+    
+    #Encoder Test
+    testStateOfCE = stateOfCE
+    encoderTestSuccess = False
+    testEncodedData = ChannelCoder(testOrigData, testStateOfCE)
+    testStateOfCE = stateOfCE
+
+
+    return
 #Main Program
+
+if runBIT() == True:
+    print("GREAT SUCCESS")
+else:
+    print("NO SUCCESS")
+
+
 originalData = CreateData(freqOfVoiceData, voiceFs)
 
 scrambledData = Scramble(originalData, stateOfLFSR)
 
-convolutionalEncodedData = ChannelCoder(scrambledData, stateOfCE)
+convolutionalEncodedData = ChannelCoder(scrambledData, stateOfCE, True)
 
 interleavedData = Interleaver(convolutionalEncodedData)
 
