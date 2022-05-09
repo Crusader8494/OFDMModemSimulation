@@ -489,10 +489,13 @@ def ChannelCoder(data, stateOfCE, encodeDecode):
         #trellisColumn = [[tuple(previousNode, hammingDistance)]]
         trellisColumnNode = []
         #trellisColumnNode = [tuple(previousNode, hammingDistance)]
-        trellisColumnNodeInformation = tuple(-1,0)
+        trellisColumnNodeInformation = (0,0)
         #trellisColumnNodeInformation = tuple(previousNode, hammingDistance)
-        previousNode = 0 #0,1,2 or 3
+        previousNode = 0 #0,1,2 or 3 / where the last itteration left off
         hammingDistance = 0
+
+        forwardTraversalLUT = [[0,1],[2,3],[0,1],[2,3]]
+        currentFowardLocation = 0 #0,1,2 or 3
         for i in range(0, len(data)):
             dataList = []
             tempData = 0
@@ -502,20 +505,38 @@ def ChannelCoder(data, stateOfCE, encodeDecode):
                 tempData = data[i] << (j*2)
             for j in range(0, 16):
                 for k in range(0, 4):
-                    #create nodes and branch
-                    if len(trellis) == 0:
-                        hammingDistance = (dataList[j] ^ 0b00) & 0x00000003
-                        trellisColumnNodeInformation = tuple(-1,hammingDistance) #-1 denotes root node
-                        trellisColumnNodeInformation.append(trellisColumnNodeInformation)
-                        break #exit due to initial state
-                    elif len(trellis) == 1:
-                        
-                    else:
+                    trellisColumnNode = []
+                    for l in range(0,2):
+                        #create nodes and branch
+                        if j == 0:
+                            if k != previousNode:
+                                print("begin: skip")
+                                trellisColumnNode.append((-2,0))
+                                break
+                            else:
+                                currentFowardLocation = forwardTraversalLUT[k][l]
+                                hammingDistance = (dataList[j] ^ currentFowardLocation) & 0x00000003
+                                trellisColumnNodeInformation = (-1,hammingDistance) #-1 denotes root node
+                                trellisColumnNode.append(trellisColumnNodeInformation)
+                        elif j == 1:
+                            if k == forwardTraversalLUT[previousNode][0] or k == forwardTraversalLUT[previousNode][1]:
+                                currentFowardLocation = forwardTraversalLUT[k][l]
+                                hammingDistance = (dataList[j] ^ currentFowardLocation) & 0x00000003
+                                trellisColumnNodeInformation = (k,hammingDistance)
+                                trellisColumnNode.append(trellisColumnNodeInformation)
+                        else:
+                            currentFowardLocation = forwardTraversalLUT[k][l]
+                            hammingDistance = (dataList[j] ^ currentFowardLocation) & 0x00000003
+                            trellisColumnNodeInformation = (k,hammingDistance) #-1 denotes root node
+                            trellisColumnNode.append(trellisColumnNodeInformation)
 
-                trellisColumnNode.append(trellisColumnNodeInformation)
-                trellisColumn.append(trellisColumnNode)
+                    trellisColumn.append(trellisColumnNode)
                 trellis.append(trellisColumn)
                         #destroy nodes / find lowest hamming distance at each node and elimate all other paths at each node
+                        #if j >= 2:
+
+                        #else:
+                            #break
                 
 
     return newData
@@ -895,7 +916,9 @@ def runBIT():
     #Encoder Test
     testStateOfCE = stateOfCE
     encoderTestSuccess = False
-    testEncodedData = ChannelCoder(testOrigData, testStateOfCE)
+    testEncodedData = ChannelCoder(testOrigData, testStateOfCE, True)
+    testStateOfCE = stateOfCE
+    testDecodedData = ChannelCoder(testEncodedData, testStateOfCE, False)
     testStateOfCE = stateOfCE
 
 
