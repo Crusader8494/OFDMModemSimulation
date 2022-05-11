@@ -39,11 +39,14 @@ class TrellisUnitTest:
     encodedVoiceData = []
     decodedVoiceData = []
 
+    trellis = []
+
     def __init__(self,startOfDataSet,sizeOfDataSet,freqOfVoice,fs):
         self.trellisStartOfDataSet = startOfDataSet
         self.trellisSizeOfDataSet = sizeOfDataSet
         self.originalVoiceData = self.CreateData(freqOfVoice, fs)
         self.encodedVoiceData = self.EncodeData(self.originalVoiceData)
+        self.ConstructTrellis()
         self.decodedVoiceData = self.DecodeData(self.encodedVoiceData)
         return
     
@@ -93,18 +96,13 @@ class TrellisUnitTest:
                 #print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
             newData.append(QWordToBuild)
         return newData
-    
-    def DecodeData(self, encodedData):
-        previousStartingNode = 0b00 #assume 0b00 starting due to the CE starting state above
+
+    def ConstructTrellis(self):
         forwardTraversalLUT = [[0,1],[2,3],[0,1],[2,3]]
-        for i in range(0, len(encodedData)):
-            dataList = []
-            tempData = 0
-            trellisStructure = [[previousStartingNode]]
-            for j in range(0, 16):
-                tempData = (tempData & 0xC0000000) >> 30
-                dataList.append(tempData)
-                tempData = encodedData[i] << (j*2)
+        for i in range(0,4):
+            trellisStructure = []
+            trellisStructure.clear()
+            trellisStructure = [[i]]
             while(1):#build trellis
                 #set deadman switch flag
                 loopEnd = True
@@ -126,13 +124,27 @@ class TrellisUnitTest:
                         #set flag to not end loop
                         loopEnd = False
                 if loopEnd == True:
+                    self.trellis.append(trellisStructure.copy())
                     break
+        return
+
+    def DecodeData(self, encodedData):
+        previousStartingNode = 0
+        for i in range(0, len(encodedData)):
+            dataList = []
+            tempData = 0
+            
+            for j in range(0, 16):
+                tempData = (tempData & 0xC0000000) >> 30
+                dataList.append(tempData)
+                tempData = encodedData[i] << (j*2)
+
             #evaluate and accumulate hamming distance of all paths, then sort
             hammingDistanceList = []
-            for j in range(0,len(trellisStructure)):
+            for j in range(0,len(self.trellis[previousStartingNode])):
                 hammingDistance = 0
                 for k in range(1,16):
-                    hammingDistance += (dataList[k - 1] ^ trellisStructure[j][k]) & 0x00000003           
+                    hammingDistance += (dataList[k - 1] ^ self.trellis[previousStartingNode][j][k]) & 0x00000003           
                 hammingDistanceList.append({'hammingDistance' : hammingDistance, 'pointer' : j}) #unsorted dictionary of distances with original pointers
             #sort list and find answers
             likelyAnswerList = []
@@ -147,7 +159,7 @@ class TrellisUnitTest:
 
             #extract answer through reverse traverse of the first answer of likelyAnswerList
             doubleByte = 0x0000
-            reverseTraverse = trellisStructure[getPointer(likelyAnswerList[0])].copy()
+            reverseTraverse = self.trellis[previousStartingNode][getPointer(likelyAnswerList[0])].copy()
             for i in range(0,len(reverseTraverse) - 1):
                 doubleByte += getBit(reverseTraverse[i],reverseTraverse[i+1])
                 doubleByte = (doubleByte << 1) & 0xFFFF
@@ -156,7 +168,7 @@ class TrellisUnitTest:
 
             #set previousNode to last node of first answer
             pointer = getPointer(likelyAnswerList[0])
-            previousStartingNode = trellisStructure[pointer][16]
+            previousStartingNode = self.trellis[previousStartingNode][pointer][16]
 
         return
 
