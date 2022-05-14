@@ -165,7 +165,8 @@ class TrellisUnitTest:
             reverseTraverse = self.trellis[previousStartingNode][getPointer(likelyAnswerList[0])].copy()
             for i in range(0,len(reverseTraverse) - 1):
                 doubleByte += getBit(reverseTraverse[i],reverseTraverse[i+1])
-                doubleByte = (doubleByte << 1) & 0xFFFF
+                if i != len(reverseTraverse) - 2:
+                    doubleByte = (doubleByte << 1) & 0xFFFF
             if((doubleByte >> 15) & 0x1 == 0x1):
                 doubleByte -= 2**16
             decodedData.append(doubleByte)
@@ -184,6 +185,6 @@ class TrellisUnitTest:
         plt.show()
         return
 
-test = TrellisUnitTest(0,128,350,8E3)
+test = TrellisUnitTest(0,32,350,8E3)
 
 x = 0
