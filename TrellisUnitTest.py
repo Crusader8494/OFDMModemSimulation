@@ -1,5 +1,6 @@
 #Trellis Unit Test
 import numpy as np
+import matplotlib.pyplot as plt
 
 def getHammingDistance(e):
     return e['hammingDistance']
@@ -48,6 +49,7 @@ class TrellisUnitTest:
         self.encodedVoiceData = self.EncodeData(self.originalVoiceData)
         self.ConstructTrellis()
         self.decodedVoiceData = self.DecodeData(self.encodedVoiceData)
+        self.compareDataByPlot()
         return
     
     def CreateData(self, freqOfVoiceData, fs):
@@ -129,6 +131,7 @@ class TrellisUnitTest:
         return
 
     def DecodeData(self, encodedData):
+        decodedData = []
         previousStartingNode = 0
         for i in range(0, len(encodedData)):
             dataList = []
@@ -163,17 +166,22 @@ class TrellisUnitTest:
             for i in range(0,len(reverseTraverse) - 1):
                 doubleByte += getBit(reverseTraverse[i],reverseTraverse[i+1])
                 doubleByte = (doubleByte << 1) & 0xFFFF
-            self.decodedVoiceData.append(doubleByte)
+            if((doubleByte >> 15) & 0x1 == 0x1):
+                doubleByte -= 2**16
+            decodedData.append(doubleByte)
+            print(bin(doubleByte))
             print("The Answer Is: " + str(int(bin(doubleByte),2)))
 
             #set previousNode to last node of first answer
             pointer = getPointer(likelyAnswerList[0])
             previousStartingNode = self.trellis[previousStartingNode][pointer][16]
 
-        return
+        return decodedData
 
-    def compareDataByPlot():
-
+    def compareDataByPlot(self):
+        plt.plot(np.arange(0,len(self.originalVoiceData),1), self.originalVoiceData)
+        plt.plot(np.arange(0,len(self.decodedVoiceData),1), self.decodedVoiceData)
+        plt.show()
         return
 
 test = TrellisUnitTest(0,128,350,8E3)
