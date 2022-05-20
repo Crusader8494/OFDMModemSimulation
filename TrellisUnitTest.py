@@ -2,31 +2,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def getHammingDistance(e):
-    return e['hammingDistance']
-def getPointer(e):
-    return e['pointer']
-def getBit(first,second):
-    if first == 0 and second == 0:
-        return 0
-    elif first == 0 and second == 1:
-        return 1
-    elif first == 1 and second == 2:
-        return 0
-    elif first == 1 and second == 3:
-        return 1
-    elif first == 2 and second == 0:
-        return 0
-    elif first == 2 and second == 1:
-        return 1
-    elif first == 3 and second == 2:
-        return 0
-    elif first == 3 and second == 3:
-        return 1
-    else:
-        print("WHAT THE FUCK")
-    return 0
-
 class TrellisUnitTest:
     
     trellisStartOfDataSet = 0
@@ -42,16 +17,43 @@ class TrellisUnitTest:
 
     trellis = []
 
+    freqOfVoiceData = 0
+    fs = 0
+
     def __init__(self,startOfDataSet,sizeOfDataSet,freqOfVoice,fs):
         self.trellisStartOfDataSet = startOfDataSet
         self.trellisSizeOfDataSet = sizeOfDataSet
-        self.originalVoiceData = self.CreateData(freqOfVoice, fs)
-        self.encodedVoiceData = self.EncodeData(self.originalVoiceData)
-        self.ConstructTrellis()
-        self.decodedVoiceData = self.DecodeData(self.encodedVoiceData)
-        self.compareDataByPlot()
+        self.freqOfVoiceData = freqOfVoice
+        self.fs = fs
         return
     
+    def getHammingDistance(self,e):
+        return e['hammingDistance']
+    
+    def getPointer(self,e):
+        return e['pointer']
+
+    def getBit(self,first,second):
+        if first == 0 and second == 0:
+            return 0
+        elif first == 0 and second == 1:
+            return 1
+        elif first == 1 and second == 2:
+            return 0
+        elif first == 1 and second == 3:
+            return 1
+        elif first == 2 and second == 0:
+            return 0
+        elif first == 2 and second == 1:
+            return 1
+        elif first == 3 and second == 2:
+            return 0
+        elif first == 3 and second == 3:
+            return 1
+        else:
+            print("WHAT!?!?!")
+        return 0
+
     def CreateData(self, freqOfVoiceData, fs):
         data = []
         for i in range(self.trellisStartOfDataSet, self.trellisStartOfDataSet + self.trellisSizeOfDataSet):
@@ -151,10 +153,10 @@ class TrellisUnitTest:
                 hammingDistanceList.append({'hammingDistance' : hammingDistance, 'pointer' : j}) #unsorted dictionary of distances with original pointers
             #sort list and find answers
             likelyAnswerList = []
-            hammingDistanceList.sort(key=getHammingDistance)
-            lowestDistance = getHammingDistance(hammingDistanceList[0])
+            hammingDistanceList.sort(key=self.getHammingDistance)
+            lowestDistance = self.getHammingDistance(hammingDistanceList[0])
             for i in hammingDistanceList:
-                if getHammingDistance(i) == lowestDistance:
+                if self.getHammingDistance(i) == lowestDistance:
                     likelyAnswerList.append(i)
                 else:
                     break
@@ -162,9 +164,9 @@ class TrellisUnitTest:
 
             #extract answer through reverse traverse of the first answer of likelyAnswerList
             doubleByte = 0x0000
-            reverseTraverse = self.trellis[previousStartingNode][getPointer(likelyAnswerList[0])].copy()
+            reverseTraverse = self.trellis[previousStartingNode][self.getPointer(likelyAnswerList[0])].copy()
             for i in range(0,len(reverseTraverse) - 1):
-                doubleByte += getBit(reverseTraverse[i],reverseTraverse[i+1])
+                doubleByte += self.getBit(reverseTraverse[i],reverseTraverse[i+1])
                 if i != len(reverseTraverse) - 2:
                     doubleByte = (doubleByte << 1) & 0xFFFF
             if((doubleByte >> 15) & 0x1 == 0x1):
@@ -174,7 +176,7 @@ class TrellisUnitTest:
             print("The Answer Is: " + str(int(bin(doubleByte),2)))
 
             #set previousNode to last node of first answer
-            pointer = getPointer(likelyAnswerList[0])
+            pointer = self.getPointer(likelyAnswerList[0])
             previousStartingNode = self.trellis[previousStartingNode][pointer][16]
 
         return decodedData
@@ -185,6 +187,13 @@ class TrellisUnitTest:
         plt.show()
         return
 
-test = TrellisUnitTest(0,32,350,8E3)
+if __name__== "__main__":
+    test = TrellisUnitTest(0,32,350,8E3)
 
-x = 0
+    test.originalVoiceData = test.CreateData(test.freqOfVoiceData, test.fs)
+    test.encodedVoiceData = test.EncodeData(test.originalVoiceData)
+    test.ConstructTrellis()
+    test.decodedVoiceData = test.DecodeData(test.encodedVoiceData)
+    test.compareDataByPlot()
+
+    x = 0
