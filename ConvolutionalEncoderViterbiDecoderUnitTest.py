@@ -2,7 +2,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-class TrellisUnitTest:
+from VoiceDataSynthesizer import VoiceDataSynthesizer
+
+class ConvolutionalEncoderViterbiDecoderUnitTest:
     
     trellisStartOfDataSet = 0
     trellisSizeOfDataSet = 0
@@ -20,11 +22,11 @@ class TrellisUnitTest:
     freqOfVoiceData = 0
     fs = 0
 
-    def __init__(self,startOfDataSet,sizeOfDataSet,freqOfVoice,fs):
-        self.trellisStartOfDataSet = startOfDataSet
-        self.trellisSizeOfDataSet = sizeOfDataSet
-        self.freqOfVoiceData = freqOfVoice
-        self.fs = fs
+    def __init__(self):
+        # self.trellisStartOfDataSet = startOfDataSet
+        # self.trellisSizeOfDataSet = sizeOfDataSet
+        # self.freqOfVoiceData = freqOfVoice
+        # self.fs = fs
         return
     
     def getHammingDistance(self,e):
@@ -54,15 +56,14 @@ class TrellisUnitTest:
             print("WHAT!?!?!")
         return 0
 
-    def CreateData(self, freqOfVoiceData, fs):
-        data = []
-        for i in range(self.trellisStartOfDataSet, self.trellisStartOfDataSet + self.trellisSizeOfDataSet):
-            t = i * 1/fs
-            data.append((int(np.cos(2*np.pi*freqOfVoiceData*t)*((2**8)-1))))
-        return data
+    # def CreateData(self, freqOfVoiceData, fs):
+    #     data = []
+    #     for i in range(self.trellisStartOfDataSet, self.trellisStartOfDataSet + self.trellisSizeOfDataSet):
+    #         t = i * 1/fs
+    #         data.append((int(np.cos(2*np.pi*freqOfVoiceData*t)*((2**8)-1))))
+    #     return data
 
     def EncodeData(self, data):
-        newData = []
         for i in range(0, len(data)):
             QWordToBuild = 0x00000000
             tempDWord = data[i]
@@ -98,8 +99,8 @@ class TrellisUnitTest:
                 tempDWord = tempDWord << 1
                 tempDWord = tempDWord  & 0xFFFF
                 #print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-            newData.append(QWordToBuild)
-        return newData
+            self.encodedVoiceData.append(QWordToBuild)
+        return self.encodedVoiceData
 
     def ConstructTrellis(self):
         forwardTraversalLUT = [[0,1],[2,3],[0,1],[2,3]]
@@ -188,9 +189,14 @@ class TrellisUnitTest:
         return
 
 if __name__== "__main__":
-    test = TrellisUnitTest(0,32,350,8E3)
+    
+    VS = VoiceDataSynthesizer(0,32,8E3,440)
 
-    test.originalVoiceData = test.CreateData(test.freqOfVoiceData, test.fs)
+    test = ConvolutionalEncoderViterbiDecoderUnitTest()
+
+    test.originalVoiceData = VS.data.copy()
+
+    #test.originalVoiceData = test.CreateData(test.freqOfVoiceData, test.fs)
     test.encodedVoiceData = test.EncodeData(test.originalVoiceData)
     test.ConstructTrellis()
     test.decodedVoiceData = test.DecodeData(test.encodedVoiceData)
