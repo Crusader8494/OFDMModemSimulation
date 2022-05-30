@@ -8,15 +8,16 @@ class VoiceDataSynthesizer:
     sizeOfDataSet = 0 #Samples 
     voiceFs = 0
     freqOfVoiceData = 0.0 #Hz
-
+    bitDepth = 8
     data = []
 
-    def __init__(self, startofDataSet, sizeOfDataSet, voiceFs, freqOfVoiceData):
+    def __init__(self, startofDataSet, sizeOfDataSet, voiceFs, freqOfVoiceData, numOfBits = 8):
         #CreateData Parameters
         self.startOfDataSet = startofDataSet #Samples
         self.sizeOfDataSet = sizeOfDataSet #Samples 
         self.voiceFs = voiceFs
         self.freqOfVoiceData = freqOfVoiceData #Hz
+        self.bitDepth = numOfBits
         self.CreateData()
 
     #Create Data Set to Transmit
@@ -24,4 +25,4 @@ class VoiceDataSynthesizer:
         self.data.clear()
         for i in range(self.startOfDataSet, self.startOfDataSet + self.sizeOfDataSet):
             t = i * 1/self.voiceFs
-            self.data.append((int(np.cos(2*np.pi*self.freqOfVoiceData*t)*((2**8)-1))))
+            self.data.append((int(np.cos(2*np.pi*self.freqOfVoiceData*t)*((2**self.bitDepth)-1))))
