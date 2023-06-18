@@ -38,6 +38,56 @@ rawDataPackets = []
 for i in range(0,len(debugYLeft)):
     rawDataPackets.append([debugYLeft[i],debugYRight[i]])
 
+
+
+def MapStereoAudioData(numOfPoints, bitWidth, leftSample, rightSample):
+    numOfPoints = int(numOfPoints)
+    bitWidth = int(bitWidth)
+    leftSample = int(leftSample)
+    rightSample = int(rightSample)
+    
+    numOfPointsAllowed = []
+    
+    for i in range(1,65):
+        numOfPointsAllowed.append(2**i)
+    
+    proceed = False
+    
+    for i in numOfPointsAllowed:
+        if (numOfPoints == i):
+            proceed = True
+    if (proceed == False):
+        raise Exception("MapStereoAudioData: Conditions not met")
+
+    #Generate Mask
+    maskToUse = 0x1
+    maskToUse  = maskToUse << (bitWidth - 1)
+    leftMask = maskToUse
+    rightMask = maskToUse
+    
+    mappedData = []
+    for i in range(0,numOfPoints):
+        mappedData.append(np.complex(0,0))
+        
+    for i in range(1,bitWidth + 1): #skip Fs/2, left audio channel, negative frequencies
+        if ((leftSample & leftMask) == leftMask):
+            mappedData[i] = np.complex(1,1)
+        else:
+            mappedData[i] = np.complex(-1,-1)
+        leftMask = leftMask >> 1
+    for i in range(((numOfPoints//2) + 1),(numOfPoints//2) + 1 + bitWidth): #skip DC, right audio channel, positive frequencies
+        if ((rightSample & rightMask) == rightMask):
+            mappedData[i] = np.complex(1,1)
+        else:
+            mappedData[i] = np.complex(-1,-1)
+        rightMask = rightMask >> 1
+        
+    mappedData[numOfPoints//2] = np.complex(1,1) #DC set to full power in phase
+    
+    mappedData = np.fft.fftshift(mappedData)
+    
+    return mappedData
+
 #map packets to carriers
 #64 point IFFT yields frequency bins -31 - +32
 #0 will be a pilot tone to estimate phase offset
@@ -49,38 +99,33 @@ for i in range(0,len(debugYLeft)):
 #a[1:n//2] should contain the positive-frequency terms,
 #a[n//2 + 1:] should contain the negative-frequency terms, in increasing order starting from the most negative frequency.
 finalMappedData = []
-for i in range(0,len(rawDataPackets)):
-    startingMaskLeft = 0x00008000
-    startingMaskRight = 0x00008000
-    
-    mappedData = []
-    mappedData.append(np.complex(1,1)) #? Hard Coded Pilot Tone in bin 0
-    for j in range(1,64): #start at 1 because index 0 is hard coded Pilot
-        jPrime = j - 31 #nice
-        if (jPrime <= -17):
-            mappedData.append(np.complex(0,0)) #Hard Coded off
-        elif ((jPrime >= -16) & (jPrime <= -1)):
-            if ((startingMaskLeft & rawDataPackets[i][0]) == startingMaskLeft): #if it equals 1, then make it 1
-                mappedData.append(np.complex(1,1))
-            else:
-                mappedData.append(np.complex(-1,-1)) #else, its 0 and perform phase flip
-            startingMaskLeft = startingMaskLeft >> 1 #right shift once to shift mask for next operation
-        elif ((jPrime >= 1) & (jPrime <= 16)):
-            if ((startingMaskRight & rawDataPackets[i][1]) == startingMaskRight): #if it equals 1, then make it 1
-                mappedData.append(np.complex(1,1))
-            else:
-                mappedData.append(np.complex(-1,-1)) #else, its 0 and perform phase flip
-            startingMaskRight = startingMaskRight >> 1 #right shift once to shift mask for next operation
-        elif (jPrime >= 17):
-            mappedData.append(np.complex(0,0)) #Hard Coded off
-        else:
-            if (jPrime != 0):
-                raise Exception("jPrime index out of bounds and also not 0")
-    finalMappedData.append(mappedData.copy())
+for i in range(0,len(rawDataPackets)):        
+    finalMappedData.append(MapStereoAudioData(64,16,rawDataPackets[i][0],rawDataPackets[i][1]).copy())
 
-#for i in number of packets
+
+#Generate Sync Marker
+thirteenBitBarker = [1,1,1,1,1,-1,-1,1,1,-1,1,-1,1]
+transformedThirteenBitBarker = []
+for i in thirteenBitBarker:
+    if (i == 1):
+        transformedThirteenBitBarker.append(0xFFFF)
+    else:
+        transformedThirteenBitBarker.append(0x0000)
+        
+syncMarkerData = []
+for i in range(0,16): #0 is preamble, 1-13 is Barker, 14-15 is postamble
+    if (i == 0): #preamble
+        syncMarkerData.append(MapStereoAudioData(64,16,0xFFFF,0xFFFF))
+    elif ((i >= 1) & (i <= 13)):
+        syncMarkerData.append(MapStereoAudioData(64,16,transformedThirteenBitBarker[i-1],transformedThirteenBitBarker[i-1]))
+    elif ((i == 14) | (i == 15)):
+        syncMarkerData.append(MapStereoAudioData(64,16,0xFFFF,0xFFFF))
+    else:
+        raise Exception("GenerateSyncMarker: Index out of range")
+
+#for i in range(0,len(finalMappedData)):
     #create sync marker
-
+    
     #append time domain data from IFFT
 
     #mix up and upsample to audio data rates (48000 samples per second)
