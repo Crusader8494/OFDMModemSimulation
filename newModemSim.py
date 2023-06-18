@@ -3,7 +3,7 @@ import numpy as np
 Fs = 48000 #Hz
 ToneFreq = 1023 #Hz
 volume = 1.0
-duration = 1 #sec
+duration = 0.1 #sec
 #16bit signed audio
 
 #generate data
@@ -88,6 +88,13 @@ def MapStereoAudioData(numOfPoints, bitWidth, leftSample, rightSample):
     
     return mappedData
 
+def StringListOfListsSamplesTogether(listOflistsOfSamples):
+    masterList = []
+    for i in listOflistsOfSamples:
+        for j in i:
+            masterList.append(j)
+    return masterList
+
 #map packets to carriers
 #64 point IFFT yields frequency bins -31 - +32
 #0 will be a pilot tone to estimate phase offset
@@ -106,6 +113,7 @@ for i in range(0,len(rawDataPackets)):
 #Generate Sync Marker
 thirteenBitBarker = [1,1,1,1,1,-1,-1,1,1,-1,1,-1,1]
 transformedThirteenBitBarker = []
+syncMarkerTimeDomainSamples = []
 for i in thirteenBitBarker:
     if (i == 1):
         transformedThirteenBitBarker.append(0xFFFF)
@@ -123,8 +131,22 @@ for i in range(0,16): #0 is preamble, 1-13 is Barker, 14-15 is postamble
     else:
         raise Exception("GenerateSyncMarker: Index out of range")
 
-#for i in range(0,len(finalMappedData)):
-    #create sync marker
+for i in range(0,len(syncMarkerData)):
+    syncMarkerTimeDomainSamples.append(np.fft.ifft(syncMarkerData[i],64))
+
+timeBetweenPackets = 0.001 #seconds
+numberOfSamplePairsPerPacket = 10
+packetsOfTimeDomainData = []
+dataPointer = 0
+while (dataPointer < len(finalMappedData)):
+    tempTimeDomainData = []
+    #apply sync marker
+    tempTimeDomainData.append(StringListOfListsSamplesTogether(syncMarkerTimeDomainSamples).copy())
+    for i in range(0,numberOfSamplePairsPerPacket):
+        if ((dataPointer + i) < len(finalMappedData)):
+            tempTimeDomainData.append(np.fft.ifft(finalMappedData[dataPointer + i],64))
+            dataPointer += 1
+    packetsOfTimeDomainData.append(StringListOfListsSamplesTogether(tempTimeDomainData).copy())
     
     #append time domain data from IFFT
 
