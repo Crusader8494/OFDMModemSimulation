@@ -18,12 +18,12 @@ for i in range(0,int((duration//(1/Fs)))): #should be 960
     voltageLeft = int(voltageLeft)
     voltageRight = int(voltageRight)
 
-    #Cap
+    #Clip
     if voltageLeft >= (2**15) - 1:
         voltageLeft = (2**15) - 1
     elif voltageLeft <= -2**15:
         voltageLeft = -2**15
-    #Cap
+    #Clip
     if voltageRight >= (2**15) - 1:
         voltageRight = (2**15) - 1
     elif voltageRight <= -2**15:
@@ -35,8 +35,8 @@ for i in range(0,int((duration//(1/Fs)))): #should be 960
 
 rawDataPackets = []
 #packetize data // Assume 64 point IFFT // We will map two 16 bit audio samples to 1 OFDM frame (left and right stereo)
-for i in range(0,len(voltageLeft)):
-    rawDataPackets.append([voltageLeft[i],voltageRight[i]].copy())
+for i in range(0,len(debugYLeft)):
+    rawDataPackets.append([debugYLeft[i],debugYRight[i]])
 
 #map packets to carriers
 #64 point IFFT yields frequency bins -31 - +32
@@ -50,12 +50,13 @@ for i in range(0,len(voltageLeft)):
 #a[n//2 + 1:] should contain the negative-frequency terms, in increasing order starting from the most negative frequency.
 finalMappedData = []
 for i in range(0,len(rawDataPackets)):
+    startingMaskLeft = 0x00008000
+    startingMaskRight = 0x00008000
+    
     mappedData = []
-    startingMaskLeft = 0x80000000
-    startingMaskRight = 0x80000000
-    for j in range(0,64):
+    mappedData.append(np.complex(1,1)) #? Hard Coded Pilot Tone in bin 0
+    for j in range(1,64): #start at 1 because index 0 is hard coded Pilot
         jPrime = j - 31 #nice
-        mappedData.append(np.complex(1,1)) #? Hard Coded Pilot Tone in bin 0
         if (jPrime <= -17):
             mappedData.append(np.complex(0,0)) #Hard Coded off
         elif ((jPrime >= -16) & (jPrime <= -1)):
@@ -73,7 +74,8 @@ for i in range(0,len(rawDataPackets)):
         elif (jPrime >= 17):
             mappedData.append(np.complex(0,0)) #Hard Coded off
         else:
-            raise Exception("what")
+            if (jPrime != 0):
+                raise Exception("jPrime index out of bounds and also not 0")
     finalMappedData.append(mappedData.copy())
 
 #for i in number of packets
