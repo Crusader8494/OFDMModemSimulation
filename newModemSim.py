@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 Fs = 48000 #Hz
 ToneFreq = 1023 #Hz
@@ -12,8 +13,8 @@ debugYLeft = []
 debugYRight = []
 for i in range(0,int((duration//(1/Fs)))): #should be 960
     time = (1/Fs)*i
-    voltageLeft = np.cos(time * ToneFreq) * ((2**15) * (volume))
-    voltageRight = np.sin(time * ToneFreq) * ((2**15) * (volume))
+    voltageLeft = np.cos(2 * np.pi * time * ToneFreq) * ((2**15) * (volume))
+    voltageRight = np.sin(2 * np.pi * time * ToneFreq) * ((2**15) * (volume))
 
     voltageLeft = int(voltageLeft)
     voltageRight = int(voltageRight)
@@ -57,7 +58,7 @@ def UpSampleByN(samples, n):
         
     return newSamples
 
-def GenerateIQTone(frequency, amplitude, fs, numOfSamples):
+def GenerateIQTone(frequency, amplitude, fslocal, numOfSamples):
     iqSamples = []
     
     if (amplitude > 1.0):
@@ -66,9 +67,9 @@ def GenerateIQTone(frequency, amplitude, fs, numOfSamples):
         raise Exception("GenerateIQTone: Amplitude less than 0.0")
         
     for i in range(0,numOfSamples):
-        time = i * (1/fs)
-        iqSamples.append(np.complex(np.cos(time * frequency) * ((2**15) * (amplitude)),
-                                    np.sin(time * frequency) * ((2**15) * (amplitude))))  
+        time = i * (1/fslocal)
+        iqSamples.append(np.complex(np.cos(2 * np.pi * time * frequency) * (((2**15)-1) * (amplitude)),
+                                    np.sin(2 * np.pi * time * frequency) * (((2**15)-1) * (amplitude)))) 
     return iqSamples
     
 def MapStereoAudioData(numOfPoints, bitWidth, leftSample, rightSample):
@@ -166,7 +167,7 @@ for i in range(0,len(syncMarkerData)):
     syncMarkerTimeDomainSamples.append(np.fft.ifft(syncMarkerData[i],64))
 
 timeBetweenPackets = 0.001 #seconds
-numberOfSamplePairsPerPacket = 10
+numberOfSamplePairsPerPacket = 32
 packetsOfTimeDomainData = []
 dataPointer = 0
 while (dataPointer < len(finalMappedData)):
@@ -664,12 +665,18 @@ for i in range(0,len(packetsOfTimeDomainData)):
 upmixedSamples = []
 for i in range(0,len(lowPassFilteredPacketsOfTimeDomainData)):
     complexMixingTone = []
-    complexMixingTone = GenerateIQTone(4000, 1.0, 48000, len(lowPassFilteredPacketsOfTimeDomainData[i]))
+    complexMixingTone = GenerateIQTone(8000, 1.0, 48000, len(lowPassFilteredPacketsOfTimeDomainData[i])).copy()
     tempUpmixedSamples = []
     for j in range(0, len(lowPassFilteredPacketsOfTimeDomainData[i])):
         tempUpmixedSamples.append(lowPassFilteredPacketsOfTimeDomainData[i][j] * complexMixingTone[j])
     upmixedSamples.append(tempUpmixedSamples.copy())
-    
+
+#convert from complex to real
+
+
+#view spectrum of first packet
+plt.specgram(upmixedSamples[0],64*12,noverlap=64*4,Fs=Fs)
+
 #end for
 
 #transmit packets !NOT A REAL STEP! Just plot it and wait
