@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import wave
+import struct
 
 Fs = 48000 #Hz
 ToneFreq = 1023 #Hz
@@ -167,7 +169,7 @@ for i in range(0,len(syncMarkerData)):
     syncMarkerTimeDomainSamples.append(np.fft.ifft(syncMarkerData[i],64))
 
 timeBetweenPackets = 0.001 #seconds
-numberOfSamplePairsPerPacket = 32
+numberOfSamplePairsPerPacket = 512
 packetsOfTimeDomainData = []
 dataPointer = 0
 while (dataPointer < len(finalMappedData)):
@@ -665,18 +667,34 @@ for i in range(0,len(packetsOfTimeDomainData)):
 upmixedSamples = []
 for i in range(0,len(lowPassFilteredPacketsOfTimeDomainData)):
     complexMixingTone = []
-    complexMixingTone = GenerateIQTone(8000, 1.0, 48000, len(lowPassFilteredPacketsOfTimeDomainData[i])).copy()
+    complexMixingTone = GenerateIQTone(6000, 1.0, 48000, len(lowPassFilteredPacketsOfTimeDomainData[i])).copy()
     tempUpmixedSamples = []
     for j in range(0, len(lowPassFilteredPacketsOfTimeDomainData[i])):
         tempUpmixedSamples.append(lowPassFilteredPacketsOfTimeDomainData[i][j] * complexMixingTone[j])
     upmixedSamples.append(tempUpmixedSamples.copy())
 
 #convert from complex to real
-
+upmixedRealSamples = []
+for i in range(0,len(upmixedSamples)):
+    tempUpmixedRealSamples = []
+    for j in range(0,len(upmixedSamples[i])):
+        tempUpmixedRealSamples.append(upmixedSamples[i][j].real)
+    upmixedRealSamples.append(tempUpmixedRealSamples)
 
 #view spectrum of first packet
 plt.specgram(upmixedSamples[0],64*12,noverlap=64*4,Fs=Fs)
 
+#create wave file for each packet
+import os
+pwd = os.getcwd()
+file = pwd + "\\WaveFiles"
+for i in range(0,len(upmixedRealSamples)):
+    filename = "packet " + str(i) + ".wav"
+    wav_file=wave.open(file + "\\" + filename, 'w')
+    wav_file.setparams((1, 2, int(48000), len(upmixedRealSamples[i]), "NONE", "not compressed"))
+    for j in range(0,len(upmixedRealSamples[i])):
+        wav_file.writeframes(struct.pack('h', int(upmixedRealSamples[i][j])))
+        
 #end for
 
 #transmit packets !NOT A REAL STEP! Just plot it and wait
