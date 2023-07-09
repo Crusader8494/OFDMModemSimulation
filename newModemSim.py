@@ -9,6 +9,8 @@ volume = 1.0
 duration = 0.01 #sec
 #16bit signed audio
 
+fsOfDataToTransmit = 4e3 #Hz
+
 #generate data
 debugX = []
 debugYLeft = []
@@ -103,20 +105,20 @@ def MapStereoAudioData(numOfPoints, bitWidth, leftSample, rightSample):
     for i in range(0,numOfPoints):
         mappedData.append(np.complex(0,0))
         
-    for i in range(1,bitWidth + 1): #skip Fs/2, left audio channel, negative frequencies
+    for i in range(16,bitWidth + 1 + 16): #skip Fs/2 and guard channels, left audio channel, negative frequencies
         if ((leftSample & leftMask) == leftMask):
-            mappedData[i] = np.complex(1,1)
+            mappedData[i] = np.complex(1,0)
         else:
-            mappedData[i] = np.complex(-1,-1)
+            mappedData[i] = np.complex(-1,0)
         leftMask = leftMask >> 1
     for i in range(((numOfPoints//2) + 1),(numOfPoints//2) + 1 + bitWidth): #skip DC, right audio channel, positive frequencies
         if ((rightSample & rightMask) == rightMask):
-            mappedData[i] = np.complex(1,1)
+            mappedData[i] = np.complex(1,0)
         else:
-            mappedData[i] = np.complex(-1,-1)
+            mappedData[i] = np.complex(-1,0)
         rightMask = rightMask >> 1
         
-    mappedData[numOfPoints//2] = np.complex(1,1) #DC set to full power in phase
+    mappedData[numOfPoints//2] = np.complex(0,0) #DC set to no power
     
     mappedData = np.fft.fftshift(mappedData)
     
@@ -146,14 +148,25 @@ for i in range(0,len(rawDataPackets)):
 
 #Generate Sync Marker
 thirteenBitBarker = [1,1,1,1,1,-1,-1,1,1,-1,1,-1,1]
-transformedThirteenBitBarker = []
+
+syncMarkerTimeDomainSamples = []
+bitDuration = 0.001 #seconds
+lengthOfOneBitInSamples = bitDuration // (1 / fsOfDataToTransmit)
+lengthOfBarkerSequenceInSamples = int(13 * lengthOfOneBitInSamples)
+for i in range(0,13):
+    tempSyncMarkerTimeDomainSamples = []
+    for j in range(0, int(lengthOfOneBitInSamples)):
+        tempSyncMarkerTimeDomainSamples.append(thirteenBitBarker[i])
+    syncMarkerTimeDomainSamples.append(tempSyncMarkerTimeDomainSamples.copy())
+
+"""
 syncMarkerTimeDomainSamples = []
 for i in thirteenBitBarker:
     if (i == 1):
         transformedThirteenBitBarker.append(0xFFFF)
     else:
         transformedThirteenBitBarker.append(0x0000)
-        
+
 syncMarkerData = []
 for i in range(0,16): #0 is preamble, 1-13 is Barker, 14-15 is postamble
     if (i == 0): #preamble
@@ -167,9 +180,12 @@ for i in range(0,16): #0 is preamble, 1-13 is Barker, 14-15 is postamble
 
 for i in range(0,len(syncMarkerData)):
     syncMarkerTimeDomainSamples.append(np.fft.ifft(syncMarkerData[i],64))
+"""
 
-timeBetweenPackets = 0.001 #seconds
-numberOfSamplePairsPerPacket = 512
+
+
+
+numberOfSamplePairsPerPacket = 64
 packetsOfTimeDomainData = []
 dataPointer = 0
 while (dataPointer < len(finalMappedData)):
@@ -183,14 +199,13 @@ while (dataPointer < len(finalMappedData)):
     packetsOfTimeDomainData.append(StringListOfListsSamplesTogether(tempTimeDomainData).copy())
 
 
-fsOfDataToTransmit = 4e3 #Hz
+
 #upsample, LPF and mix up to 8kHz at audio data rates (48000 samples per second)
 
 #upsample from 4000 Hz to 48000 Hz
 #48000/4000 = 12 so insert 11 zeroes between every sample
 for i in range(0, len(packetsOfTimeDomainData)):
     packetsOfTimeDomainData[i] = UpSampleByN(packetsOfTimeDomainData[i], 12).copy()
-
 
 #define 2.0 kHz wide (2.0*2 kHz complex) 480 Hz stopband LPF
 #blackmann https://fiiir.com/
@@ -662,7 +677,6 @@ lowPassFilteredPacketsOfTimeDomainData = []
 for i in range(0,len(packetsOfTimeDomainData)):
     lowPassFilteredPacketsOfTimeDomainData.append(np.convolve(packetsOfTimeDomainData[i], h))
 
-
 #generate mixing cosinewave and upmix to real
 upmixedSamples = []
 for i in range(0,len(lowPassFilteredPacketsOfTimeDomainData)):
@@ -678,11 +692,19 @@ upmixedRealSamples = []
 for i in range(0,len(upmixedSamples)):
     tempUpmixedRealSamples = []
     for j in range(0,len(upmixedSamples[i])):
-        tempUpmixedRealSamples.append(upmixedSamples[i][j].real)
+        tempUpmixedRealSamples.append(upmixedSamples[i][j].real + upmixedSamples[i][j].imag)
     upmixedRealSamples.append(tempUpmixedRealSamples)
 
 #view spectrum of first packet
-plt.specgram(upmixedSamples[0],64*12,noverlap=64*4,Fs=Fs)
+xAxis = np.arange(0,len(upmixedSamples[0]),1)
+fig, (ax1,ax2) = plt.subplots(nrows=2)
+ax1.plot(xAxis, upmixedSamples[0])
+ax2.specgram(upmixedSamples[0],64*12,noverlap = 32, Fs=Fs)
+fig.show()
+
+
+
+
 
 #create wave file for each packet
 import os
@@ -698,6 +720,48 @@ for i in range(0,len(upmixedRealSamples)):
 #end for
 
 #transmit packets !NOT A REAL STEP! Just plot it and wait
+
+
+
+#combine packets into 1 stream
+timeBetweenPackets = 0.001 #seconds
+finalDataSet = []
+for i in range(0,len(upmixedRealSamples)):
+    for j in range(0,len(upmixedRealSamples[i])):
+        finalDataSet.append(upmixedRealSamples[i][j])
+    for j in range(0,int(timeBetweenPackets//(1/48000))):
+        finalDataSet.append(0)
+        
+#Generate Wave File for overall timeline
+wav_file=wave.open(file + "\\overall.wav",'w')
+wav_file.setparams((1,2,int(48000),len(finalDataSet), "NONE", "not compressed"))
+for i in range(0,len(finalDataSet)):
+    wav_file.writeframes(struct.pack('h',int(finalDataSet[i])))
+    
+
+
+##############################################################
+#########################  RECEIVER  #########################
+##############################################################
+
+#down convert?
+
+#costas loop?
+
+#generate barker code for synchronization
+offset = 230
+syncMarker = finalDataSet[offset:(lengthOfBarkerSequenceInSamples*12) + offset] #length of samples at baseband * 12 for upsampling
+
+test = np.convolve(syncMarker,finalDataSet)
+
+
+
+
+
+#cross correlation
+
+
+
 
 
 
