@@ -182,9 +182,34 @@ for i in range(0,len(syncMarkerData)):
     syncMarkerTimeDomainSamples.append(np.fft.ifft(syncMarkerData[i],64))
 """
 
+def CreateRRCFilterSpec(Alpha,Span,L):
+    #From Digital Modulation with Python page 95
+    #Alpha: Roll Off Factor
+    #Span: Filter Span In Symbols
+    #L: Oversampling Factor (Samples Per Symbol)
+    t = np.arange(-Span/2, Span/2, 1/L)
+    with np.errstate(divide ='ignore', invalid='ignore'):
+        A = np.divide(np.sin(np.pi*t),(np.pi*t))
+        B = np.divide(np.cos(np.pi*Alpha*t),1-(2*Alpha*t)**2)
+        p = A*B
+    #Hangle Singularities
+    p[np.argwhere(np.isnan(p))] = 1
+    #singlarity at t = +/- Tsym/2alpha
+    p[np.argwhere(np.isinf(p))] = (Alpha/2)*np.sin(np.divide(np.pi,(2*Alpha)))
+    return p
 
+# explicit function to normalize array
+# geeksforgeeks
+def normalize(arr, t_min, t_max):
+    norm_arr = []
+    diff = t_max - t_min
+    diff_arr = max(arr) - min(arr)   
+    for i in arr:
+        temp = (((i - min(arr))*diff)/diff_arr) + t_min
+        norm_arr.append(temp)
+    return norm_arr
 
-
+#Take mapped data and convert to frequency domain, apply RRC filter
 numberOfSamplePairsPerPacket = 64
 packetsOfTimeDomainData = []
 dataPointer = 0
@@ -198,7 +223,13 @@ while (dataPointer < len(finalMappedData)):
             dataPointer += 1
     packetsOfTimeDomainData.append(StringListOfListsSamplesTogether(tempTimeDomainData).copy())
 
-
+#Apply RCC Filter to packet / Not Barker
+b = CreateRRCFilterSpec(0.5,10,64)
+b = normalize(b,0,1)
+for i in packetsOfTimeDomainData:
+    tempData = i[52::].copy() #Start at 52nd (from 0) index because that is first real data
+    tempData = np.convolve(tempData,b,mode='same')
+    i[52::] = tempData
 
 #upsample, LPF and mix up to 8kHz at audio data rates (48000 samples per second)
 
@@ -695,13 +726,14 @@ for i in range(0,len(upmixedSamples)):
         tempUpmixedRealSamples.append(upmixedSamples[i][j].real + upmixedSamples[i][j].imag)
     upmixedRealSamples.append(tempUpmixedRealSamples)
 
+"""
 #view spectrum of first packet
 xAxis = np.arange(0,len(upmixedSamples[0]),1)
 fig, (ax1,ax2) = plt.subplots(nrows=2)
 ax1.plot(xAxis, upmixedSamples[0])
-ax2.specgram(upmixedSamples[0],64*12,noverlap = 32, Fs=Fs)
+ax2.specgram(upmixedSamples[0],64,noverlap = 0, Fs=Fs)
 fig.show()
-
+"""
 
 
 
@@ -749,19 +781,33 @@ for i in range(0,len(finalDataSet)):
 #costas loop?
 
 #generate barker code for synchronization
-offset = 230
+offset = 220
 syncMarker = finalDataSet[offset:(lengthOfBarkerSequenceInSamples*12) + offset] #length of samples at baseband * 12 for upsampling
 
-test = np.convolve(syncMarker,finalDataSet)
-
-
-
-
-
 #cross correlation
+correlationProduct = np.abs(np.correlate(finalDataSet,syncMarker,mode='same'))
 
+#peak search
+maxCorrelation = max(correlationProduct)
+threshold = maxCorrelation * 0.98
 
+listOfThresholdCrossings = []
+for i in range(0,len(correlationProduct)):
+    if correlationProduct[i] > threshold:
+        listOfThresholdCrossings.append([i,correlationProduct[i].copy()])
 
+#Sampler
+#grab packet and strip header, store
+startingPacketPointers = np.add(listOfThresholdCrossings,268)
 
+recoveredPackets = []
+for i in range(0,len(listOfThresholdCrossings)):
+    recoveredPackets.append(finalDataSet[int(startingPacketPointers[i][0]):int(startingPacketPointers[i][0] + (4096*12))].copy()) #assumes
+"""
+#FFT
+FFTResults = []
+for i in range(0,len(recoveredPackets))
+    for j in range(0,len(recoveredPackets[i])):
+"""        
 
 
